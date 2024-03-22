@@ -4,17 +4,17 @@ from datetime import datetime, timedelta
 
 # Establish MongoDB connection
 client = pymongo.MongoClient("mongodb://localhost:27017/")
-db = client["mongodb_assignment_megha"]
+db = client["mongodb_assignment_megha_TAS206"]
 
 # a. Comments Collection
 # Find top 10 users who made the maximum number of comments
 def find_top_users():
     pipeline = [
-        {"$group": {"_id": "$name", "count": {"$sum": 1}}},
-        {"$project": {"User Name": "$_id", "count": 1,"_id":0}},
-        {"$sort": {"count": -1}},
-        {"$limit": 10}
-    ]
+    {"$group": {"_id": "$_id", "name": {"$addToSet": "$name"}, "count": {"$sum": 1}}},
+    {"$project": {"_id": 0, "User Name": "$name", "count": 1}},
+    {"$sort": {"count": -1}},
+    {"$limit": 10}
+]
     top_users = db.comments.aggregate(pipeline)
     return list(top_users)
 
@@ -28,10 +28,10 @@ def find_top_movies_with_most_comments():
     top_movies = db.comments.aggregate(pipeline)
     movie_info = []
     for movie in top_movies:
-        id = movie.get("_id").get('$oid')
-        movie_name=db.movies.find_one({"_id.oid":id},{'title':1,'_id':0})
+        id = movie.get("_id")
+        movie_name=db.movies.find_one({"_id":id},{'title':1,'_id':0})
         count = movie.get("count")
-        movie_info.append((movie_name['title'], count))
+        movie_info.append((movie_name.get('title'), count))
         
 
     return  movie_info
@@ -41,40 +41,12 @@ from datetime import datetime
 
 def comments_by_month(year):
     # Convert the start and end dates of the given year to Unix timestamps
-    start_of_year = datetime(year, 1, 1)
-    end_of_year = datetime(year + 1, 1, 1)
-
-    start_unix_timestamp = int(start_of_year.timestamp())
-    end_unix_timestamp = int(end_of_year.timestamp())
-
-
-    # Aggregation pipeline to group comments by month and year
-    pipeline = [
-        # Filter documents within the given year
-        {"$match": {
-        "date.$date.$numberLong": {"$gte": str(start_unix_timestamp), "$lt": str(end_unix_timestamp)}
-        }},
-        # Group comments by month and year
-        {"$group": {
-            "_id": {"month": "$month", "year": "$year"},
-            "total_comments": {"$sum": 1}
-        }},
-        # Project to reshape the output
-        {"$project": {
-            "_id": 0,
-            "month": "$_id.month",
-            "year": "$_id.year",
-            "total_comments": 1
-        }}
-    ]
-
-    # Execute the aggregation pipeline
-    result = db.comments.aggregate(pipeline)
-
-    # Convert the result to a list
-    comments_by_month = list(result)
-
-    return comments_by_month
+    pipeline=[{"$match": {"$expr": {"$eq": [{"$year": "$date"}, year]}}},
+            {"$group": {"_id": {"$month": "$date"}, "total_comments": {"$sum": 1}}},
+            {"$sort": {"_id": 1}}]
+    
+    comment=db.comments.aggregate(pipeline)
+    return comment
 
 # Find top 10 users who made the maximum number of comments
 top_users=find_top_users()
@@ -82,7 +54,7 @@ print("Top 10 users who made the maximum number of comments")
 for user in top_users:
     print(user)
 
-# Find top 10 movies with most comments
+# # Find top 10 movies with most comments
 top_movies_with_most_comments=find_top_movies_with_most_comments()
 print("Top 10 movies with most comments")
 for movie in top_movies_with_most_comments:
@@ -93,3 +65,4 @@ total_comments_by_month=comments_by_month(2012)
 for comment_count in total_comments_by_month:
     print(comment_count)
 
+      
